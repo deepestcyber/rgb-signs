@@ -15,6 +15,7 @@
 #define MODEL_PIXELS WS2812 // WS2811, WS2812b // Fastled
 #define MODEL_COLORS GRB //Fastled
 #define NUM_LEDS 122 // 300
+#define FIRST_LED 47 //75 // 300
 #define INPUT_WAIT 50 // time (ms) to wait for another buttoncheck
 #define REFRESH_WAIT 50 // time (ms) to wait for another buttoncheck
 #define COOLING  20 //55           // defines the level at which the lighting effect fades before a new "flame" generates
@@ -28,7 +29,8 @@ CRGBPalette16 waterPalette = CRGBPalette16(CRGB::Green, CRGB::Blue, CRGB::Green,
 
 // modes: 0 = light patterns, 1 = image stream (24bit), 2 = music patterns, 3 = NES video stream
 uint8_t mode = 0;
-uint8_t modeMax = 128;
+uint8_t modeMax = 255;
+uint8_t modePrev = 0;
 
 int waitingTime = INPUT_WAIT;
 
@@ -37,6 +39,7 @@ float photoLeakeRate = 0.9; // for smoothing the photo resistor [0,1]
 const float powf_1023 = powf(1023,2);
 
 int brightness = 128;
+int brightnessPrev = 128;
 
 elapsedMillis elapsedTime;
 
@@ -56,7 +59,7 @@ void setup() {
   pinMode(POTI_MODE, INPUT);
   pinMode(POTI_BRIGHT, INPUT);
   pinMode(PHOTO_RST_PIN, INPUT);
-  //Serial.begin(9600);      // open the serial port at 9600 bps:
+//  Serial.begin(9600);      // open the serial port at 9600 bps:
 
   delay(100);
 }
@@ -66,40 +69,49 @@ void loop() {
   elapsedTime = 0;
 
   // mode - TODO
-  if (mode >= 227 && mode <=255) {
+  if (mode >= 224 && mode <=255) {
+    state=(state+1)%NUM_LEDS;
     fill_palette(leds0, NUM_LEDS, state, 6, waterPalette, 128, LINEARBLEND);
-    state++;
     waitingTime = 200;
   }
 
   // mode - TODO
-  else if (mode >= 198 && mode <=226) {
+  else if (mode >= 200 && mode <=223) {
     random16_add_entropy( random());  // Add entropy to random number generator; we use a lot of it.
     Fire2012WithPalette();
     waitingTime = REFRESH_WAIT;
   }
 
   // mode - TODO
-  else if (mode >= 168 && mode <=197) {
-    state++;
+  else if (mode >= 176 && mode <=199) {
+    state=(state+1)%NUM_LEDS;
     for (int i = 0; i < NUM_LEDS; i++) {
-      leds0[i] = CHSV( 255, 255, (int)(mode*4+(255.0/NUM_LEDS*i))%256 );
+      leds0[i] = CHSV( int(255.0/NUM_LEDS*(NUM_LEDS-1-i+state))%256, 128, 255 );
     }
     waitingTime = REFRESH_WAIT;
   }
 
   // mode - TODO
-  else if (mode >= 140 && mode <=169) {
-    state++;
+  else if (mode >= 152 && mode <=175) {
+    state=(state+1)%NUM_LEDS;
     for (int i = 0; i < NUM_LEDS; i++) {
-      leds0[i] = CHSV( 255, (int)(mode*4+(255.0/NUM_LEDS*i))%256, 255 );
+      leds0[i] = CHSV( int(255.0/NUM_LEDS*(NUM_LEDS-1-i+state))%256, 255, 255 );
     }
     waitingTime = REFRESH_WAIT;
-
   }
 
   // mode - TODO
-  else if (mode >= 136 && mode <=139) {
+  else if (mode >= 88 && mode <=151) {
+    state=(state+1)%NUM_LEDS;
+    for (int i = 0; i < NUM_LEDS; i++) {
+      uint8_t k = (NUM_LEDS-1-i+state+FIRST_LED)%NUM_LEDS;
+      leds0[i] = CHSV( (mode-88)*4, (255-k), 255 );
+    }
+    waitingTime = REFRESH_WAIT;
+  }
+
+  // mode - TODO
+  else if (mode >= 80 && mode <=87) {
     for (int i = 0; i < NUM_LEDS; i++) {
       leds0[i] = CRGB( 255, 125, 15);
     }
@@ -107,7 +119,7 @@ void loop() {
   }
 
   // mode - TODO
-  else if (mode >= 132 && mode <=135) {
+  else if (mode >= 72 && mode <=79) {
     for (int i = 0; i < NUM_LEDS; i++) {
       leds0[i] = CRGB( 255, 165, 110);
     }
@@ -115,7 +127,7 @@ void loop() {
   }
 
   // mode - TODO
-  else if (mode >= 128 && mode <=131) {
+  else if (mode >= 64 && mode <=71) {
     for (int i = 0; i < NUM_LEDS; i++) {
       leds0[i] = CRGB( 255, 220, 180);
     }
@@ -123,9 +135,9 @@ void loop() {
   }
 
   // mode - TODO
-  else if (mode >= 0 && mode <=127) {
+  else if (mode >= 0 && mode <=63) {
     for (int i = 0; i < NUM_LEDS; i++) {
-      leds0[i] = CHSV( 255, 255, (int)mode*4;
+      leds0[i] = CHSV( mode*4, 255, 255 );
     }
     waitingTime = REFRESH_WAIT;
   }
@@ -145,15 +157,17 @@ void delayAwake(int time) {
 
 void checkInputs() {
 
-  mode = (int)round(analogRead(POTI_MODE) * (modeMax-1) / 1023.);
+  modePrev = mode;
+  mode = (int)(round(analogRead(POTI_MODE) / 1023. * modeMax)*0.2)+(modePrev*0.8);
 
   //photoRSTState = (int)round(photoLeakeRate * photoRSTState + (1.-photoLeakeRate) * (analogRead(PHOTO_RST_PIN) / 1023 * 255 * 0.75 + 63));
   photoRSTState = 255; // photo sensor not used
 
+  brightnessPrev = brightness;
   //brightness = (int)round(analogRead(POTI_BRIGHT) / 1023 * 255 / 255. * photoRSTState); // linear
   //brightness = (int)round(powf(0.+analogRead(POTI_BRIGHT),2) / powf_1023 * 255 / 255. * photoRSTState); // quadratic
-  brightness = (int)round(powf(0.+analogRead(POTI_BRIGHT),2) / powf_1023 * photoRSTState);
-	
+  brightness = (int)(round(powf(0.+analogRead(POTI_BRIGHT),2) / powf_1023 * photoRSTState)*0.2)+(brightnessPrev*0.8);
+//	
 //  Serial.print("Check inputs: ");       
 //  Serial.print(" mode: ");
 //  Serial.print(mode);       
@@ -182,12 +196,12 @@ void Fire2012WithPalette()   // defines a new function
 
   // Step 1.  Cool down every cell a little
   for ( int i = 0; i < NUM_LEDS; i++) {
-    heat[i] = qsub8( heat[i],  random8(0, ((COOLING * 10) / NUM_LEDS) + 2));
+    heat[i] = qsub8( heat[i], random8(0, ((COOLING * 10) / NUM_LEDS) + 2));
   }
 
   // Step 2.  Heat from each cell drifts 'up' and diffuses a little
-  for ( int k = NUM_LEDS - 1; k >= 2; k--) {
-    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+  for ( int j = NUM_LEDS - 1; j >= 2; j--) {
+    heat[j] = (heat[j - 1] + heat[j - 2] + heat[j - 2] ) / 3;
   }
 
   // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
@@ -214,10 +228,11 @@ void Fire2012WithPalette()   // defines a new function
 //  Serial.println(brightness);           
 
   // Step 4.  Map from heat cells to LED colors
-  for ( int j = 0; j < NUM_LEDS; j++) {
+  for ( int l = 0; l < NUM_LEDS; l++) {
     // Scale the heat value from 0-255 down to 0-240
     // for best results with color palettes.
-    byte colorindex = scale8( heat[NUM_LEDS-j-1], 248);
-    leds0[j] = leds1[j] = ColorFromPalette( firePalette, colorindex);
+    byte colorindex = scale8( heat[NUM_LEDS-l-1], 248);
+    uint8_t k = (NUM_LEDS-1-l+48)%NUM_LEDS;
+    leds0[k] = ColorFromPalette( firePalette, colorindex);
   }
 }
