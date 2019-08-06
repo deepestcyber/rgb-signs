@@ -27,6 +27,7 @@
 #define REFRESH_WAIT 50 // time (ms) to wait for another buttoncheck
 #define COOLING  20 //55    // defines the level at which the lighting effect fades before a new "flame" generates
 #define SPARKING 80 //120   // defines the rate of flicker which we will see from the flame animation
+#define POTI_CORRECTION 1.02 //(correct for the actual limits of the potis
 
 
 CRGB leds[NUM_LEDS]; //this variable contains the addresses of all LEDs
@@ -48,24 +49,23 @@ uint8_t charMode = 0;
 uint8_t charModeMax = 255;
 uint8_t charModePrev = 0;
 
-uint8_t speed = 0;
-uint8_t speedPrev = 0;
+uint16_t speed = 0;
+uint16_t speedPrev = 0;
 
-int refreshTime = REFRESH_WAIT
-int waitingTime = INPUT_WAIT;
+uint16_t refreshTime = REFRESH_WAIT;
+uint16_t waitingTime = INPUT_WAIT;
 
-int8_t photoRSTState = 128;    // photo resistor for regulating brightness
-float photoLeakeRate = 0.9; // for smoothing the photo resistor [0,1]
+uint8_t photoRSTState = 128;    // photo resistor for regulating brightness
+//float photoLeakeRate = 0.9; // for smoothing the photo resistor [0,1] //not used currently
 const float powf_1023 = powf(1023,2);
 
-int8_t brightness = 128;
-int8_t brightnessPrev = 128;
+uint8_t brightness = 128;
+uint8_t brightnessPrev = 128;
 
 elapsedMillis elapsedTime;
 
 uint8_t font_state = 30;
 uint8_t char_state = 30;
-
 
 void setup() {
 
@@ -79,7 +79,7 @@ void setup() {
   FastLED.show();
 
   pinMode(POTI_FONT_MODE, INPUT);
-  pinMode(POTI_CNAR_MODE, INPUT);
+  pinMode(POTI_CHAR_MODE, INPUT);
   pinMode(POTI_BRIGHT, INPUT);
   pinMode(POTI_SPEED, INPUT);
   //pinMode(PHOTO_RST_PIN, INPUT); not used
@@ -89,7 +89,7 @@ void setup() {
 }
 
 
-void loop_only_for_testing() {
+void loop_debug() {
   elapsedTime = 0;
   for (uint8_t i = 0; i < NUM_LEDS_FONT; i++) {
     leds[ledsFont[i]] = CHSV( 0, 255, 255 );
@@ -199,7 +199,7 @@ void loop() {
 
   // Change the characters: Megaman, Kong, Blinky, Lakito, Bub
 
-  // char - specific colour shift with changing brightness (blinking) - slow
+  // char - specific colour shift with changing brightness (blinking) - fast
   if (charMode >= 224 && charMode <=255) {
     char_state=(char_state+1)%64;
     setCharacters( (charMode-224)*8, 0, abs(char_state-32)*5-128 );
@@ -208,22 +208,22 @@ void loop() {
 
   // char - specific colour shift with changing brightness (blinking) - coupled with font rainbow
   else if (charMode >= 192 && charMode <=223) {
-    char_state=font_state;
+    char_state=(char_state+1)%NUM_LEDS_FONT;
     setCharacters( (charMode-192)*8, 0, abs(char_state-47)*3-128 );
     waitingTime = refreshTime;
   }
 
-  // char - rainbow animation - slow
-  else if (fontMode >= 160 && fontMode <=191) {
+  // char - rainbow animation - fast
+  else if (charMode >= 160 && charMode <=191) {
     char_state=(char_state+1)%64;
-    setCharacters( int(255.0/64*(64-1-i+font_state))%256, 0, 0 );
+    setCharacters( int(255.0/64*(64-1+char_state))%256, 0, 0 );
     waitingTime = refreshTime;
   }
 
   // char - rainbow animation - coupled with font rainbow
-  else if (fontMode >= 128 && fontMode <=159) {
-    char_state=font_state;
-    setCharacters( int(255.0/NUM_LEDS_FONT*(NUM_LEDS_FONT-1-i+font_state))%256, 0, 0 );
+  else if (charMode >= 128 && charMode <=159) {
+    char_state=(char_state+1)%NUM_LEDS_FONT;
+    setCharacters( int(255.0/NUM_LEDS_FONT*(NUM_LEDS_FONT-1+char_state))%256, 0, 0 );
     waitingTime = refreshTime;
   }
 
@@ -282,13 +282,13 @@ void setMegaman(uint8_t hue, int8_t sat, int8_t val)
   //default col3: 150,255,118 (HSL)
 
   for (uint8_t i = 0; i < 2; i++) {
-    leds[ledsMegaman[i]] = CHSV( (31+hue)%256, min(255,max(0,235+sat)), min(255,max(0,205+val)) );
+    leds[ledsMegaman[i]] = CHSV( (39+hue)%256, min(255,max(0,185+sat)), min(255,max(0,205+val)) );
   }
   for (uint8_t j = 2; j < 4; j++) {
-    leds[ledsMegaman[j]] = CHSV( (125+hue)%256, min(255,max(0,255+sat)), min(255,max(0,116+val)) );
+    leds[ledsMegaman[j]] = CHSV( (125+hue)%256, min(255,max(0,255+sat)), min(255,max(0,156+val)) );
   }
   for (uint8_t k = 4; k < 7; k++) {
-    leds[ledsMegaman[k]] = CHSV( (150+hue)%256, min(255,max(0,255+sat)), min(255,max(0,118+val)) );
+    leds[ledsMegaman[k]] = CHSV( (150+hue)%256, min(255,max(0,255+sat)), min(255,max(0,158+val)) );
   }
 }
 
@@ -300,10 +300,10 @@ void setKong(uint8_t hue, int8_t sat, int8_t val)
   //default col3: 0,0,254 (HSL)
 
   for (uint8_t i = 0; i < 3; i++) {
-    leds[ledsKong[i]] = CHSV( (23+hue)%256, min(255,max(0,255+sat)), min(255,max(0,124+val)) );
+    leds[ledsKong[i]] = CHSV( (23+hue)%256, min(255,max(0,255+sat)), min(255,max(0,184+val)) );
   }
   for (uint8_t j = 3; j < 8; j++) {
-    leds[ledsKong[j]] = CHSV( (4+hue)%256, min(255,max(0,235+sat)), min(255,max(0,102+val)) );
+    leds[ledsKong[j]] = CHSV( (4+hue)%256, min(255,max(0,235+sat)), min(255,max(0,142+val)) );
   }
   for (uint8_t k = 8; k < 9; k++) {
     leds[ledsKong[k]] = CHSV( (0+hue)%256, min(255,max(0,0+sat)), min(255,max(0,254+val)) );
@@ -317,10 +317,10 @@ void setBlinky(uint8_t hue, int8_t sat, int8_t val)
   //default col2: 42,255,198 (HSL)
 
   for (uint8_t i = 0; i < 2; i++) {
-    leds[ledsBlinky[i]] = CHSV( (0+hue)%256, min(255,max(0,255+sat)), min(255,max(0,127+val)) );
+    leds[ledsBlinky[i]] = CHSV( (0+hue)%256, min(255,max(0,255+sat)), min(255,max(0,167+val)) );
   }
   for (uint8_t j = 2; j < 3; j++) {
-    leds[ledsBlinky[j]] = CHSV( (42+hue)%256, min(255,max(0,255+sat)), min(255,max(0,198+val)) );
+    leds[ledsBlinky[j]] = CHSV( (42+hue)%256, min(255,max(0,205+sat)), min(255,max(0,218+val)) );
   }
 }
 
@@ -334,7 +334,7 @@ void setLakitu(uint8_t hue, int8_t sat, int8_t val)
     leds[ledsLakitu[i]] = CHSV( (0+hue)%256, min(255,max(0,0+sat)), min(255,max(0,248+val)) );
   }
   for (uint8_t k = 3; k < 6; k++) {
-    leds[ledsLakitu[k]] = CHSV( (23+hue)%256, min(255,max(0,255+sat)), min(255,max(0,124+val)) );
+    leds[ledsLakitu[k]] = CHSV( (23+hue)%256, min(255,max(0,255+sat)), min(255,max(0,164+val)) );
   }
   for (uint8_t k = 6; k < 10; k++) {
     leds[ledsLakitu[k]] = CHSV( (0+hue)%256, min(255,max(0,0+sat)), min(255,max(0,248+val)) );
@@ -349,16 +349,16 @@ void setBub(uint8_t hue, int8_t sat, int8_t val)
   //default col3: 85,85,253 (HSL)
 
   for (uint8_t i = 0; i < 2; i++) {
-    leds[ledsBub[i]] = CHSV( (4+hue)%256, min(255,max(0,241+sat)), min(255,max(0,183+val)) );
+    leds[ledsBub[i]] = CHSV( (10+hue)%256, min(255,max(0,191+sat)), min(255,max(0,193+val)) );
   }
   for (uint8_t j = 2; j < 4; j++) {
-    leds[ledsBub[j]] = CHSV( (75+hue)%256, min(255,max(0,197+sat)), min(255,max(0,140+val)) );
+    leds[ledsBub[j]] = CHSV( (74+hue)%256, min(255,max(0,237+sat)), min(255,max(0,160+val)) );
   }
   for (uint8_t k = 4; k < 6; k++) {
     leds[ledsBub[k]] = CHSV( (85+hue)%256, min(255,max(0,85+sat)), min(255,max(0,253+val)) );
   }
   for (uint8_t j = 6; j < 8; j++) {
-    leds[ledsBub[j]] = CHSV( (75+hue)%256, min(255,max(0,197+sat)), min(255,max(0,140+val)) );
+    leds[ledsBub[j]] = CHSV( (75+hue)%256, min(255,max(0,197+sat)), min(255,max(0,160+val)) );
   }
 }
 
@@ -397,15 +397,16 @@ void setFontFireWithPalette()   // defines a new function
 
 void checkInputs() {
 
+  //for all potis: with the pow function we transform a linear poti into a quadratic range, with ~Prev*0.8 we smooth out the poti state to avoid flickering
   fontModePrev = fontMode;
-  fontMode = (uint8_t)(round(analogRead(POTI_FONT_MODE) / 1023. * fontModeMax)*0.2)+(fontModePrev*0.8);
+  fontMode = (uint8_t)(round(max(min((analogRead(POTI_FONT_MODE)*POTI_CORRECTION) / 1023. * fontModeMax*0.2 + fontModePrev*0.8-0.35, 255.),0.)));
 
-  charModePrev = fontMode;
-  charMode = (uint8_t)(round(analogRead(POTI_CHAR_MODE) / 1023. * fontModeMax)*0.2)+(fontModePrev*0.8);
+  charModePrev = charMode;
+  charMode = (uint8_t)(round(max(min((analogRead(POTI_CHAR_MODE)*POTI_CORRECTION) / 1023. * charModeMax*0.2 + charModePrev*0.8-0.35, 255.),0.)));
 
   speedPrev = speed;
-  speed = (int)(round(powf(0.+analogRead(POTI_SPEED),2) / powf_1023 * REFRESH_WAIT * 50 + 8)*0.2)+(speedPrev*0.8);
-  refreshTime = speed
+  speed = (int)(round((1004.-powf(0.+analogRead(POTI_SPEED)*POTI_CORRECTION,2) / powf_1023 * REFRESH_WAIT * 19.24)*0.2 + speedPrev*0.8-0.35));
+  refreshTime = speed;
   //refreshTime = REFRESH_WAIT // speed poti is not used
 
   //photoRSTState = (int)round(photoLeakeRate * photoRSTState + (1.-photoLeakeRate) * (analogRead(PHOTO_RST_PIN) / 1023 * 255 * 0.75 + 63));
@@ -414,19 +415,21 @@ void checkInputs() {
   brightnessPrev = brightness;
   //brightness = (int)round(analogRead(POTI_BRIGHT) / 1023 * 255 / 255. * photoRSTState); // linear
   //brightness = (int)round(powf(0.+analogRead(POTI_BRIGHT),2) / powf_1023 * 255 / 255. * photoRSTState); // quadratic
-  brightness = (int)(round(powf(0.+analogRead(POTI_BRIGHT),2) / powf_1023 * photoRSTState)*0.2)+(brightnessPrev*0.8);
+  brightness = (uint8_t)(round(max(min(powf(0.+analogRead(POTI_BRIGHT)*POTI_CORRECTION,2) / powf_1023 * photoRSTState*0.2 + brightnessPrev*0.8-0.35, 255.),0.)));
 //	
 //  Serial.print("Check inputs: ");       
 //  Serial.print(" fontMode: ");
 //  Serial.print(fontMode);       
 //  Serial.print(" charMode: ");
-//  Serial.print(chartMode);
+//  Serial.print(charMode);
 //  Serial.print(" speed: ");
 //  Serial.print(speed);
 //  Serial.print(" photoRSTState: ");
 //  Serial.print(photoRSTState);       
 //  Serial.print(" brightness: ");       
 //  Serial.println(brightness);           
+//  Serial.print(" turnaround: ");       
+//  Serial.println(turnaround);           
 
   FastLED.setBrightness(brightness);
 }
